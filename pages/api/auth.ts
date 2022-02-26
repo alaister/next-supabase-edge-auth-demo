@@ -25,6 +25,7 @@ export default async function handler(
     }
 
     if (event === 'SIGNED_OUT') {
+      console.log('signing out')
       res.setHeader('set-cookie', [
         `sb-access-token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`,
         `sb-refresh-token=; Path=/; HttpOnly; Expires=Thu, 01 Jan 1970 00:00:00 GMT`,

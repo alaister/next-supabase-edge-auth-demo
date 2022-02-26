@@ -15,22 +15,35 @@ export default async function handler(
   const setCookies = parse(setCookie, { map: true })
 
   const newRefreshToken = setCookies['sb-refresh-token']?.value || null
+  const refreshToken = req.cookies['sb-refresh-token'] || null
 
   // if newRefreshToken exists, the tokens have already been refreshed been refreshed
   // by the next.js middleware
   if (newRefreshToken) {
-    console.log('already refreshed in middleware')
+    console.log(
+      'already refreshed in middleware',
+      refreshToken,
+      newRefreshToken
+    )
+
     return res.status(200).json({
       refreshed: true,
     })
   }
 
-  const refreshToken = req.cookies['sb-refresh-token'] || null
-
   if (refreshToken) {
+    console.log('refreshing in endpoint', refreshToken, setCookies)
     const { data: session, error } = await supabase.auth.api.refreshAccessToken(
       refreshToken
     )
+
+    if (error) {
+      console.log('refresh failed with error:', error)
+      return res.status(200).json({
+        refreshed: false,
+        error,
+      })
+    }
 
     if (session) {
       const { access_token, refresh_token } = session
@@ -50,7 +63,6 @@ export default async function handler(
     } else {
       return res.status(200).json({
         refreshed: false,
-        error,
       })
     }
   }
