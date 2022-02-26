@@ -244,7 +244,7 @@ if (typeof window !== 'undefined') {
 }
 
 // Add supabase to the window for debugging
-if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+if (typeof window !== 'undefined') {
   // @ts-ignore
   window.supabase = supabase
 }
