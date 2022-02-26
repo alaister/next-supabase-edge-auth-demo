@@ -11,7 +11,15 @@ export default async function handler(
     return res.status(405).json({ error: 'Method Not Allowed' })
   }
 
+  // await new Promise((resolve) => setTimeout(resolve, 1500))
+
+  console.log(
+    'setCOOKIE',
+    res.getHeader('set-cookie'),
+    res.getHeader('Set-Cookie')
+  )
   const setCookie = res.getHeader('set-cookie') as any
+
   const setCookies = parse(setCookie, { map: true })
 
   const newRefreshToken = setCookies['sb-refresh-token']?.value || null

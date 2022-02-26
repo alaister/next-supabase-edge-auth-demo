@@ -44,7 +44,7 @@ async function singletonRefresh() {
 
   setRefreshingPromise()
   await refresh()
-  console.log('resolving')
+  console.log('done refreshing')
   resolveRefreshingPromise(true)
   refreshingPromise = null
 }
