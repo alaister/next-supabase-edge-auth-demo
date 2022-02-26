@@ -3,10 +3,68 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { SupabaseQueryBuilder } from '@supabase/supabase-js/dist/main/lib/SupabaseQueryBuilder'
 import decode from 'jwt-decode'
 
-export function hasTokenExpired(token: string) {
+export function hasTokenExpired(token?: string) {
+  if (!token) {
+    return false
+  }
+
   const { exp } = decode<{ exp: number }>(token, {})
 
   return exp <= Math.floor(Date.now() / 1000)
+}
+
+export async function refresh() {
+  console.log('refreshing...')
+
+  const { refreshed, error } = await fetch(`/api/refresh`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: new Headers({
+      'Content-Type': 'application/json',
+    }),
+    body: JSON.stringify({}),
+  }).then((res) => res.json())
+
+  return { refreshed, error }
+}
+
+let resolveRefreshingPromise: (value: unknown) => void
+let refreshingPromise: Promise<unknown> | null = null
+function setRefreshingPromise() {
+  refreshingPromise = new Promise((resolve) => {
+    resolveRefreshingPromise = resolve
+  })
+}
+
+async function singletonRefresh() {
+  if (refreshingPromise) {
+    console.log('refreshing already in progress')
+    return await refreshingPromise
+  }
+
+  setRefreshingPromise()
+  await refresh()
+  console.log('resolving')
+  resolveRefreshingPromise(true)
+  refreshingPromise = null
+}
+
+function getAccessToken() {
+  const cookies = parse(document.cookie)
+  const accessToken = cookies['sb-access-token']
+
+  if (!accessToken) {
+    return
+  }
+
+  return accessToken
+}
+
+async function maybeRefreshToken() {
+  const expired = hasTokenExpired(getAccessToken())
+  if (expired) {
+    await singletonRefresh()
+  }
 }
 
 interface CustomSupabaseClient extends SupabaseClient {
@@ -27,14 +85,39 @@ let supabase = createClient(
   }
 ) as CustomSupabaseClient
 
+supabase.auth.session = () => {
+  const accessToken = getAccessToken()
+
+  if (!accessToken) {
+    return null
+  }
+
+  return {
+    access_token: accessToken,
+    token_type: 'bearer',
+    user: null,
+  }
+}
+
 supabase._from = supabase.from
 supabase.from = <T>(table: string) => {
   let queryBuilder = supabase._from<T>(table) as CustomSupabaseQueryBuilder<T>
 
   queryBuilder._then = queryBuilder.then
-  queryBuilder.then = (...args) => {
-    console.log('custom query builder then')
-    return queryBuilder._then(...args)
+  queryBuilder.then = async (...args) => {
+    const expired = hasTokenExpired(getAccessToken())
+    if (expired) {
+      console.log('expired:', expired)
+      await singletonRefresh()
+      console.log('done refreshing')
+      const accessToken = getAccessToken()
+      if (accessToken) {
+        // @ts-ignore
+        queryBuilder.headers['Authorization'] = `Bearer ${accessToken}`
+      }
+    }
+
+    return await queryBuilder._then(...args)
   }
 
   return queryBuilder
@@ -136,61 +219,34 @@ supabase.from = <T>(table: string) => {
 //   }
 // }
 
-// if (typeof window !== 'undefined') {
-//   ;(async () => {
-//     // maybeRefreshToken on page load
-//     const token = await maybeRefreshToken()
-//     setupRefreshTimer(token)
-//   })()
+if (typeof window !== 'undefined') {
+  // refresh token on tab focus if needed
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      maybeRefreshToken()
+    }
+  })
 
-//   // maybeRefreshToken on tab focus
-//   document.addEventListener('visibilitychange', async () => {
-//     if (document.visibilityState === 'visible') {
-//       const token = await maybeRefreshToken()
-//       setupRefreshTimer(token)
-//     }
-//   })
+  // keep the server in sync after a login or logout
+  supabase.auth.onAuthStateChange((event, session) => {
+    console.log('onAuthStateChange', { event, session })
 
-//   // keep the supabase client in sync with localStorage
-//   window.addEventListener('storage', (e) => {
-//     if (e.key === STORAGE_KEY && e.newValue) {
-//       console.log('setting token from other tab')
-//       supabase.auth.setAuth(e.newValue)
-
-//       // restart the refresh timer as the token has already been refreshed
-//       setupRefreshTimer(e.newValue)
-//     }
-//   })
-
-//   // keep the server in sync after a login or logout
-//   supabase.auth.onAuthStateChange((event, session) => {
-//     console.log('onAuthStateChange', { event, session })
-
-//     // Save token to local storage
-//     const token = session?.access_token
-//     if (token) {
-//       localStorage.setItem(STORAGE_KEY, token)
-//       setupRefreshTimer(token)
-//     }
-
-//     // Save tokens to cookies
-//     fetch(`/api/auth`, {
-//       method: 'POST',
-//       credentials: 'same-origin',
-//       headers: new Headers({
-//         'Content-Type': 'application/json',
-//       }),
-//       body: JSON.stringify({ event, session }),
-//     })
-//   })
-// }
+    // Save tokens to cookies
+    fetch(`/api/auth`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: new Headers({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify({ event, session }),
+    })
+  })
+}
 
 // Add supabase to the window for debugging
 if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
   // @ts-ignore
   window.supabase = supabase
-  window.parseCookies = parse
-  window.hasTokenExpired = hasTokenExpired
 }
 
 export default supabase

@@ -1634,6 +1634,11 @@ side-channel@^1.0.4:
     get-intrinsic "^1.0.2"
     object-inspect "^1.9.0"
 
+simpledotcss@^2.0.5:
+  version "2.0.5"
+  resolved "https://registry.yarnpkg.com/simpledotcss/-/simpledotcss-2.0.5.tgz#39f33b0e5a57593f7a9359b1077448038e63e15f"
+  integrity sha512-414JbYb5KU2gKg8kWU2rG93sBiUu/uOMRvLeYuNUCvCQHz2pNzDQ2gePOWELMn6uh1z0OiL6+6QV9opFb/RnwQ==
+
 slash@^3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/slash/-/slash-3.0.0.tgz#6539be870c165adbd5240220dbe361f1bc4d4634"

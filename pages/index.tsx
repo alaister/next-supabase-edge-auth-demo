@@ -3,27 +3,35 @@ import { useCallback, useEffect, useState } from 'react'
 import supabase from '../lib/supabase'
 
 const Home: NextPage = () => {
-  const [response, setResponse] = useState<any>({})
+  const [data, setData] = useState<any>({})
 
-  const fetchResponse = useCallback(() => {
+  const fetchData = useCallback(() => {
+    console.log('fetching...')
+
     supabase
-      .from('users')
+      .from('posts')
       .select('*')
-      .maybeSingle()
-      .then((response) => setResponse(response))
+      .then(({ data }) => setData(data))
   }, [])
 
   useEffect(() => {
-    fetchResponse()
-  }, [fetchResponse])
+    fetchData()
+  }, [fetchData])
 
   return (
     <div>
       <h1>Hello Next.js</h1>
       <pre>
-        <code>{JSON.stringify(response, null, 2)}</code>
+        <code>{JSON.stringify(data, null, 2)}</code>
       </pre>
-      <button onClick={fetchResponse}>Refetch</button>
+      <button
+        onClick={() => {
+          fetchData()
+          fetchData()
+        }}
+      >
+        Refetch
+      </button>
     </div>
   )
 }
