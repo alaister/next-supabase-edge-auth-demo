@@ -220,6 +220,10 @@ supabase.from = <T>(table: string) => {
 // }
 
 if (typeof window !== 'undefined') {
+  // Add supabase to the window for debugging
+  // @ts-ignore
+  window.supabase = supabase
+
   // refresh token on tab focus if needed
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
@@ -241,12 +245,6 @@ if (typeof window !== 'undefined') {
       body: JSON.stringify({ event, session }),
     })
   })
-}
-
-// Add supabase to the window for debugging
-if (typeof window !== 'undefined') {
-  // @ts-ignore
-  window.supabase = supabase
 }
 
 export default supabase

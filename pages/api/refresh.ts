@@ -14,16 +14,18 @@ export default async function handler(
   const setCookie = res.getHeader('set-cookie') as any
   const setCookies = parse(setCookie, { map: true })
 
-  const refreshToken = req.cookies['sb-refresh-token'] || null
   const newRefreshToken = setCookies['sb-refresh-token']?.value || null
 
   // if newRefreshToken exists, the tokens have already been refreshed been refreshed
   // by the next.js middleware
   if (newRefreshToken) {
+    console.log('already refreshed in middleware')
     return res.status(200).json({
       refreshed: true,
     })
   }
+
+  const refreshToken = req.cookies['sb-refresh-token'] || null
 
   if (refreshToken) {
     const { data: session, error } = await supabase.auth.api.refreshAccessToken(
