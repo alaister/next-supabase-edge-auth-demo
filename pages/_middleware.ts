@@ -1,12 +1,13 @@
 import { NextFetchEvent, NextRequest, NextResponse } from 'next/server'
 import supabase, { hasTokenExpired } from '../lib/supabase'
 
+const SKIP_REFRESH_PATHS = ['/favicon.ico', '/api/refresh']
+
 export async function middleware(req: NextRequest, ev: NextFetchEvent) {
   const url = req.nextUrl.clone()
   let res = NextResponse.next()
 
-  // Skip refresh for favicon requests
-  if (url.pathname === '/favicon.ico') {
+  if (SKIP_REFRESH_PATHS.includes(url.pathname)) {
     return res
   }
 

@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { parse } from 'set-cookie-parser'
+
 import supabase from '../../lib/supabase'
 
 export default async function handler(
@@ -13,40 +13,15 @@ export default async function handler(
 
   // await new Promise((resolve) => setTimeout(resolve, 1500))
 
-  console.log(
-    'setCOOKIE',
-    res.getHeader('set-cookie'),
-    res.getHeader('Set-Cookie')
-  )
-  const setCookie = res.getHeader('set-cookie') as any
-
-  const setCookies = parse(setCookie, { map: true })
-
-  const newRefreshToken = setCookies['sb-refresh-token']?.value || null
   const refreshToken = req.cookies['sb-refresh-token'] || null
 
-  // if newRefreshToken exists, the tokens have already been refreshed been refreshed
-  // by the next.js middleware
-  if (newRefreshToken) {
-    console.log(
-      'already refreshed in middleware',
-      refreshToken,
-      newRefreshToken
-    )
-
-    return res.status(200).json({
-      refreshed: true,
-    })
-  }
-
   if (refreshToken) {
-    console.log('refreshing in endpoint', refreshToken, setCookies)
     const { data: session, error } = await supabase.auth.api.refreshAccessToken(
       refreshToken
     )
 
     if (error) {
-      console.log('refresh failed with error:', error)
+      console.log('refresh failed with error:', refreshToken, error)
       return res.status(200).json({
         refreshed: false,
         error,
