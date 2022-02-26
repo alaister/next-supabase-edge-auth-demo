@@ -1,3 +1,4 @@
+import { serialize } from 'cookie'
 import type { NextApiRequest, NextApiResponse } from 'next'
 
 export default async function handler(
@@ -10,17 +11,29 @@ export default async function handler(
   }
 
   const { event, session } = req.body
-  if (event && session) {
-    if (event === 'SIGNED_IN') {
+  if (event) {
+    if (event === 'SIGNED_IN' && session) {
       const { access_token, refresh_token } = session
 
       res.setHeader('set-cookie', [
-        `sb-access-token=${access_token}; Path=/; Expires=${new Date(
-          Date.now() + 1000 * 60 * 60 * 24 * 7
-        ).toUTCString()}`,
-        `sb-refresh-token=${refresh_token}; Path=/; HttpOnly; Expires=${new Date(
-          Date.now() + 1000 * 60 * 60 * 24 * 7
-        ).toUTCString()}`,
+        serialize('sb-access-token', access_token, {
+          maxAge: 31540000, // 1 year
+          httpOnly: false,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+        }),
+        ...(refresh_token
+          ? [
+              serialize('sb-refresh-token', refresh_token, {
+                maxAge: 31540000, // 1 year
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                path: '/',
+              }),
+            ]
+          : []),
       ])
     }
 
