@@ -14,7 +14,7 @@ const Home: NextPage = () => {
   >([])
 
   const fetchData = useCallback(() => {
-    console.log('fetching...')
+    console.log('fetching posts...')
 
     supabase
       .from('posts')
@@ -32,7 +32,7 @@ const Home: NextPage = () => {
 
   return (
     <div>
-      <h1>Posts</h1>
+      <h1>Example Posts</h1>
 
       <ul>
         {data.map(({ id, title }) => (
@@ -65,12 +65,17 @@ const Home: NextPage = () => {
 
         <button
           onClick={() => {
+            // sending two requests to test if multiple requests try to refresh at the same time
             fetchData()
             fetchData()
           }}
         >
           Refetch
         </button>
+      </div>
+
+      <div>
+        Try visiting <code>/authenticated</code>
       </div>
     </div>
   )

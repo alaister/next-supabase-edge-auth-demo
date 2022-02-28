@@ -11,8 +11,6 @@ export default async function handler(
     return res.status(405).json({ error: 'Method Not Allowed' })
   }
 
-  // await new Promise((resolve) => setTimeout(resolve, 1500))
-
   const refreshToken = req.cookies['sb-refresh-token'] || null
 
   if (refreshToken) {

@@ -8,7 +8,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@mike-north/types": "^1.4.1",
     "@supabase/supabase-js": "^1.30.6",
+    "@tsndr/cloudflare-worker-jwt": "^1.1.6",
     "cookie": "^0.4.2",
     "jwt-decode": "^3.1.2",
     "next": "12.1.0",

@@ -1,7 +1,41 @@
-import { parse } from 'cookie'
+import { Deferred } from '@mike-north/types'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { SupabaseQueryBuilder } from '@supabase/supabase-js/dist/main/lib/SupabaseQueryBuilder'
+import { parse } from 'cookie'
 import decode from 'jwt-decode'
+
+interface CustomSupabaseClient extends SupabaseClient {
+  _from: SupabaseClient['from']
+}
+
+interface CustomSupabaseQueryBuilder<T> extends SupabaseQueryBuilder<T> {
+  _then: SupabaseQueryBuilder<T>['then']
+}
+
+let supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_KEY!,
+  {
+    fetch: (...args) => fetch(...args),
+    autoRefreshToken: false,
+    persistSession: false,
+    // detectSessionInUrl: false,
+    // TODO: detect the session in the url manually and set it
+    // using the same "then" waiting as a normal refresh
+    // using something like: Object.fromEntries(new URLSearchParams(new URL(window.location.href).hash.replace('#', '?')))
+  }
+) as CustomSupabaseClient
+
+export function getAccessToken() {
+  const cookies = parse(document.cookie)
+  const accessToken = cookies['sb-access-token']
+
+  if (!accessToken) {
+    return
+  }
+
+  return accessToken
+}
 
 export function hasTokenExpired(token?: string) {
   if (!token) {
@@ -25,39 +59,36 @@ export async function refresh() {
     body: JSON.stringify({}),
   }).then((res) => res.json())
 
+  // Update the realtime client
+  const token = getAccessToken()
+  if (token) {
+    //@ts-ignore
+    supabase.realtime.setAuth(token)
+  }
+
   return { refreshed, error }
 }
 
-let resolveRefreshingPromise: (value: unknown) => void
-let refreshingPromise: Promise<unknown> | null = null
-function setRefreshingPromise() {
-  refreshingPromise = new Promise((resolve) => {
-    resolveRefreshingPromise = resolve
-  })
+let refreshingDeferred: Deferred<any> | null = null
+
+function setRefreshingDeferred() {
+  refreshingDeferred = new Deferred()
+}
+function resolveRefreshingDeferred() {
+  refreshingDeferred?.resolve()
+  refreshingDeferred = null
 }
 
 async function singletonRefresh() {
-  if (refreshingPromise) {
+  if (refreshingDeferred) {
     console.log('refreshing already in progress')
-    return await refreshingPromise
+    return await refreshingDeferred.promise
   }
 
-  setRefreshingPromise()
+  setRefreshingDeferred()
   await refresh()
   console.log('done refreshing')
-  resolveRefreshingPromise(true)
-  refreshingPromise = null
-}
-
-function getAccessToken() {
-  const cookies = parse(document.cookie)
-  const accessToken = cookies['sb-access-token']
-
-  if (!accessToken) {
-    return
-  }
-
-  return accessToken
+  resolveRefreshingDeferred()
 }
 
 async function maybeRefreshToken() {
@@ -67,24 +98,8 @@ async function maybeRefreshToken() {
   }
 }
 
-interface CustomSupabaseClient extends SupabaseClient {
-  _from: SupabaseClient['from']
-}
-
-interface CustomSupabaseQueryBuilder<T> extends SupabaseQueryBuilder<T> {
-  _then: SupabaseQueryBuilder<T>['then']
-}
-
-let supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY!,
-  {
-    fetch: (...args) => fetch(...args),
-    autoRefreshToken: false,
-    persistSession: false,
-  }
-) as CustomSupabaseClient
-
+// Override how supabase-js looks up the access token, getting it from the cookie
+// instead of localStorage
 supabase.auth.session = () => {
   const accessToken = getAccessToken()
 
@@ -99,6 +114,8 @@ supabase.auth.session = () => {
   }
 }
 
+// Here we're intercepting the "then" method of the query builder,
+// allow us to always ensure that the query is sent with a refreshed token
 supabase._from = supabase.from
 supabase.from = <T>(table: string) => {
   let queryBuilder = supabase._from<T>(table) as CustomSupabaseQueryBuilder<T>
@@ -107,9 +124,9 @@ supabase.from = <T>(table: string) => {
   queryBuilder.then = async (...args) => {
     const expired = hasTokenExpired(getAccessToken())
     if (expired) {
-      console.log('expired:', expired)
+      console.log('access token expired; attempting refresh')
       await singletonRefresh()
-      console.log('done refreshing')
+
       const accessToken = getAccessToken()
       if (accessToken) {
         // @ts-ignore
@@ -122,102 +139,6 @@ supabase.from = <T>(table: string) => {
 
   return queryBuilder
 }
-
-// supabase.auth.session = () => ({})
-
-// const STORAGE_KEY = 'token'
-
-// let refreshTimer: ReturnType<typeof setTimeout>
-
-// async function maybeRefreshToken(forceRefresh = false) {
-//   console.log('maybe refresh?')
-//   // Check if the current user token is not expired
-//   const token = localStorage.getItem(STORAGE_KEY)
-//   if (token) {
-//     const { exp } = decode<{ exp: number }>(token, {})
-
-//     if (exp * 1000 < Date.now() || forceRefresh) {
-//       console.log('attempting refreshing')
-
-//       const lockedStatus = localStorage.getItem('locked')
-//       console.log(
-//         'localStorage locked status:',
-//         lockedStatus === 'true' ? 'locked' : 'unlocked'
-//       )
-
-//       // check if localStorage is locked
-//       if (lockedStatus === 'true') {
-//         console.log('localStorage is locked, stopping refresh')
-
-//         setTimeout(() => {
-//           if (localStorage.getItem('locked') === 'true') {
-//             console.log(
-//               'localStorage is still locked, unlocking and trying again'
-//             )
-//             localStorage.removeItem('refresh-lock')
-//             maybeRefreshToken(forceRefresh)
-//           }
-//         }, 10000) // 10 second timeout
-
-//         return
-//       }
-
-//       // lock localStorage
-//       localStorage.setItem('refresh-lock', 'true')
-//       console.log('locked localStorage')
-
-//       const { access_token } = await fetch(
-//         `/api/auth${forceRefresh ? '?refresh=true' : ''}`,
-//         {
-//           method: 'GET',
-//           credentials: 'same-origin',
-//         }
-//       ).then((res) => res.json())
-
-//       console.log('client side refreshed token', access_token)
-
-//       if (access_token) {
-//         localStorage.setItem(STORAGE_KEY, access_token)
-//         supabase.auth.setAuth(access_token)
-//       } else {
-//         localStorage.removeItem(STORAGE_KEY)
-//       }
-
-//       // unlock localStorage
-//       localStorage.removeItem('refresh-lock')
-//       console.log('unlocked localStorage')
-
-//       return access_token
-//     }
-
-//     return token
-//   }
-// }
-
-// function setupRefreshTimer(token?: string) {
-//   console.log('setup refresh timer')
-//   // Check if the current user token is not expired
-//   if (token) {
-//     const { exp } = decode<{ exp: number }>(token, {})
-
-//     // Always refresh at least 15 seconds before expiration, with a random
-//     // offset to lessen the chances of multiple refreshes happening at the same time
-//     const jitter = 15000 + Math.floor(Math.random() * 5000)
-
-//     const timeUntilExpiration = exp * 1000 - Date.now() - jitter
-//     console.log('timeUntilExpiration', timeUntilExpiration)
-
-//     if (timeUntilExpiration > 0) {
-//       console.log('setting up refresh timer')
-//       clearTimeout(refreshTimer)
-//       refreshTimer = setTimeout(async () => {
-//         console.log('performing early refresh from timer')
-//         const token = await maybeRefreshToken(true)
-//         setupRefreshTimer(token)
-//       }, timeUntilExpiration)
-//     }
-//   }
-// }
 
 if (typeof window !== 'undefined') {
   // Add supabase to the window for debugging
