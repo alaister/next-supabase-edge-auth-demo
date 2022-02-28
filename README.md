@@ -19,6 +19,8 @@ I have found refreshing tokens on a timer to be unreliable, leading users to be 
 
 Cookies are kept in sync by the browser across tabs, and there is little chance two refreshes will occur at exactly the same time because we're not refreshing on a timer, so the user should remain logged in for a long time.
 
+Take a look at [lib/supabase.ts](lib/supabase.ts) to see how things work.
+
 ## Caveats/Todos
 
 1. Does not yet support auth on dynamic paths
