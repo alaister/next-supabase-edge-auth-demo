@@ -1,5 +1,7 @@
 # Next.js + Supabase Edge Auth Demo
 
+## I'm now using a different (better) approach to this same problem - check it out here: https://github.com/alaister/supabase-cookie-auth-proxy
+
 ### :warning: This is a proof of concept and a work in progress
 
 ## Concepts/Principals
